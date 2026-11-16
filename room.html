@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D-комната подростка — Three.js</title>
+<style>
+  :root{--panel:rgba(18,20,28,.82);--border:rgba(255,255,255,.14);--accent:#7c9cff;--text:#eef2ff}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,system-ui,Arial,sans-serif}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+  .ui{position:fixed;top:16px;left:16px;z-index:10;width:262px;padding:16px;color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:16px;backdrop-filter:blur(14px);box-shadow:0 18px 50px rgba(0,0,0,.35);user-select:none}
+  .ui h1{margin:0 0 4px;font-size:17px;letter-spacing:.2px}
+  .ui p{margin:0 0 14px;font-size:12px;line-height:1.45;color:#b9c2d8}
+  .section{margin-bottom:14px}
+  .label{display:block;margin-bottom:7px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#98a4bd}
+  .buttons{display:grid;gap:7px}
+  button{width:100%;padding:9px 11px;color:var(--text);font:inherit;font-size:13px;text-align:left;background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:.18s ease}
+  button:hover{background:rgba(255,255,255,.14)}
+  button.active{background:linear-gradient(90deg,rgba(124,156,255,.28),rgba(124,156,255,.10));border-color:rgba(124,156,255,.65);box-shadow:0 0 0 1px rgba(124,156,255,.18) inset}
+  .hint{margin:0;font-size:11px;line-height:1.5;color:#9aa5bd}
+  .loading{position:fixed;inset:0;z-index:20;display:grid;place-items:center;color:#dfe6ff;background:#0b0d13;font-size:15px;transition:opacity .4s}
+  @media (max-width:640px){.ui{left:10px;right:10px;top:10px;width:auto}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="loading" id="loading">Загрузка комнаты…</div>
+<div class="ui">
+<h1>Комната подростка</h1>
+<p>Интерактивная изометрическая 3D-сцена</p>
+<div class="section"><span class="label">Стены</span><div class="buttons" id="wallButtons">
+<button data-mode="all" class="active">Все 4 стены</button>
+<button data-mode="back">Только задник</button>
+<button data-mode="floor">Только пол</button>
+</div></div>
+<div class="section"><span class="label">Управление</span><p class="hint">ЛКМ — вращение<br>Колесо — приближение / отдаление<br>ПКМ или средняя кнопка — перемещение камеры</p></div>
+</div>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const app=document.getElementById('app'),loading=document.getElementById('loading');
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;app.appendChild(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0d0f16);scene.fog=new THREE.Fog(0x0d0f16,26,70);
+const camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,.1,200);camera.position.set(13,12,13);camera.lookAt(0,1.4,0);
+const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,1.2,0);controls.enableDamping=true;controls.dampingFactor=.08;controls.screenSpacePanning=true;controls.minDistance=6;controls.maxDistance=42;controls.maxPolarAngle=Math.PI*.495;controls.update();
+const room=new THREE.Group();scene.add(room);
+const ROOM_W=12,ROOM_D=12,WALL_H=5,WALL_THICK=.18;
+const materials={floor:new THREE.MeshStandardMaterial({color:0x7a5a41,roughness:.82}),rug:new THREE.MeshStandardMaterial({color:0x2e3b57,roughness:.95}),wallBack:new THREE.MeshStandardMaterial({color:0x2b3245,roughness:.9}),wallSide:new THREE.MeshStandardMaterial({color:0x232a3a,roughness:.9}),wood:new THREE.MeshStandardMaterial({color:0x8a5a34,roughness:.65}),darkWood:new THREE.MeshStandardMaterial({color:0x5b3a22,roughness:.68}),metal:new THREE.MeshStandardMaterial({color:0xb9c2d0,metalness:.8,roughness:.28}),darkMetal:new THREE.MeshStandardMaterial({color:0x30343d,metalness:.6,roughness:.42}),fabricBlue:new THREE.MeshStandardMaterial({color:0x3d5bd8,roughness:.9}),fabricRed:new THREE.MeshStandardMaterial({color:0xd5474a,roughness:.9}),fabricGreen:new THREE.MeshStandardMaterial({color:0x3fa374,roughness:.9}),white:new THREE.MeshStandardMaterial({color:0xf2f4f8,roughness:.55}),black:new THREE.MeshStandardMaterial({color:0x15171c,roughness:.5}),screen:new THREE.MeshStandardMaterial({color:0x081020,emissive:0x1b3f8f,emissiveIntensity:.55,roughness:.18}),glass:new THREE.MeshPhysicalMaterial({color:0xaad4ff,transparent:true,opacity:.22,roughness:.08,metalness:0}),plant:new THREE.MeshStandardMaterial({color:0x3f9a58,roughness:.8}),pot:new THREE.MeshStandardMaterial({color:0xb4674a,roughness:.8})};
+function box(w,h,d,m,x=0,y=0,z=0){const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;return mesh}
+function cyl(rt,rb,h,m,x=0,y=0,z=0,seg=24){const mesh=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),m);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;return mesh}
+function sphere(r,m,x=0,y=0,z=0){const mesh=new THREE.Mesh(new THREE.SphereGeometry(r,24,18),m);mesh.position.set(x,y,z);mesh.castShadow=true;return mesh}
+const floor=box(ROOM_W,.3,ROOM_D,materials.floor,0,-.15,0);floor.receiveShadow=true;room.add(floor);
+const rug=box(8.4,.04,6.4,materials.rug,0,.03,.4);room.add(rug);
+const rugBorder=box(8.7,.042,6.7,materials.fabricRed,0,.028,.4);room.add(rugBorder);
+const backWall=box(ROOM_W,WALL_H,WALL_THICK,materials.wallBack,0,WALL_H/2,-ROOM_D/2);room.add(backWall);
+const leftWall=box(WALL_THICK,WALL_H,ROOM_D,materials.wallSide,-ROOM_W/2,WALL_H/2,0);
+const rightWall=box(WALL_THICK,WALL_H,ROOM_D,materials.wallSide,ROOM_W/2,WALL_H/2,0);room.add(leftWall,rightWall);
+const frontWall=box(ROOM_W,WALL_H,WALL_THICK,materials.wallSide,0,WALL_H/2,ROOM_D/2);room.add(frontWall);
+[-ROOM_D/2,ROOM_D/2].forEach(z=>{room.add(box(ROOM_W,.28,.1,materials.darkWood,0,.14,z+(z<0?WALL_THICK/2:-WALL_THICK/2)))});
+[-ROOM_W/2,ROOM_W/2].forEach(x=>{room.add(box(.1,.28,ROOM_D,materials.darkWood,x+(x<0?WALL_THICK/2:-WALL_THICK/2),.14,0))});
+const windowFrame=box(3.6,2.4,.12,materials.white,-2.4,2.8,-ROOM_D/2+WALL_THICK/2+.02);room.add(windowFrame);
+const windowGlass=box(3.35,2.15,.05,materials.glass,-2.4,2.8,-ROOM_D/2+.16);room.add(windowGlass);
+room.add(box(3.4,.07,.09,materials.white,-2.4,2.8,-ROOM_D/2+.17));room.add(box(.07,2.15,.09,materials.white,-2.4,2.8,-ROOM_D/2+.17));
+const bed=new THREE.Group();bed.position.set(-4.15,0,-2.8);room.add(bed);
+bed.add(box(2.1,.45,3.4,materials.wood,0,.28,0));bed.add(box(2.2,.22,3.5,materials.fabricBlue,0,.55,0));bed.add(box(2.05,.18,1.2,materials.white,0,.68,-1.05));bed.add(box(2.05,.2,.5,materials.fabricRed,0,.72,-.45));bed.add(box(2.05,.2,.5,materials.fabricGreen,0,.72,.1));bed.add(box(2.25,1.15,.18,materials.darkWood,0,.75,-1.75));[-.95,.95].forEach(x=>[-1.55,1.55].forEach(z=>bed.add(box(.16,.42,.16,materials.darkWood,x,.21,z))));
+const desk=new THREE.Group();desk.position.set(2.8,0,-4.55);room.add(desk);
+desk.add(box(4.6,.14,1.7,materials.wood,0,1.42,0));desk.add(box(.16,1.35,1.5,materials.darkWood,-2.15,.72,0));desk.add(box(.16,1.35,1.5,materials.darkWood,2.15,.72,0));desk.add(box(4.3,.08,.55,materials.darkWood,0,.72,-.42));
+const monitor=new THREE.Group();monitor.position.set(-.4,1.5,-.35);desk.add(monitor);
+monitor.add(box(2.4,1.35,.08,materials.black,0,.95,0));monitor.add(box(2.25,1.2,.03,materials.screen,0,.95,.05));monitor.add(box(.22,.45,.18,materials.black,0,.22,0));monitor.add(box(.9,.06,.55,materials.black,0,.03,.05));
+desk.add(box(1.65,.06,.5,materials.black,-.4,1.52,.45));desk.add(box(.28,.09,.42,materials.black,.95,1.53,.45));desk.add(cyl(.13,.11,.24,materials.fabricRed,1.65,1.64,.4));
+const chair=new THREE.Group();chair.position.set(2.8,0,-2.75);chair.rotation.y=Math.PI;room.add(chair);
+chair.add(box(1.15,.14,1.05,materials.black,0,.78,0));chair.add(box(1.1,1.15,.14,materials.black,0,1.4,-.5));chair.add(cyl(.09,.09,.62,materials.darkMetal,0,.4,0));chair.add(cyl(.45,.5,.09,materials.darkMetal,0,.07,0,28));[-.42,.42].forEach(x=>chair.add(box(.09,.09,.85,materials.darkMetal,x,.52,-.05)));
+const wardrobe=new THREE.Group();wardrobe.position.set(5.05,0,-2.4);room.add(wardrobe);
+wardrobe.add(box(.75,3.6,3.1,materials.wood,0,1.8,0));wardrobe.add(box(.05,3.3,1.45,materials.darkWood,-.39,1.8,-.78));wardrobe.add(box(.05,3.3,1.45,materials.darkWood,-.39,1.8,.78));wardrobe.add(cyl(.035,.035,.45,materials.metal,-.43,1.8,-.08));wardrobe.add(cyl(.035,.035,.45,materials.metal,-.43,1.8,.08));
+const shelf=new THREE.Group();shelf.position.set(5.05,0,2.15);room.add(shelf);
+shelf.add(box(.6,3.2,2.6,materials.wood,0,1.6,0));for(let i=0;i<4;i++)shelf.add(box(.52,.07,2.4,materials.darkWood,-.06,.55+i*.72,0));
+const dresser=new THREE.Group();dresser.position.set(-4.9,0,2.3);room.add(dresser);
+dresser.add(box(1.05,1.25,2.4,materials.wood,0,.63,0));for(let i=0;i<3;i++){dresser.add(box(.05,.32,2.15,materials.darkWood,.53,.38+i*.4,0));dresser.add(box(.07,.06,.5,materials.metal,.58,.38+i*.4,0))}
+const tv=new THREE.Group();tv.position.set(-4.85,1.28,2.3);room.add(tv);
+tv.add(box(.08,1.5,2.5,materials.black,0,.75,0));tv.add(box(.03,1.35,2.35,materials.screen,.05,.75,0));tv.add(box(.3,.1,.7,materials.black,-.18,.05,0));
+const guitar=new THREE.Group();guitar.position.set(-5.15,0,-.1);guitar.rotation.z=.09;room.add(guitar);
+guitar.add(box(.42,1.65,.14,materials.darkWood,0,.85,0));guitar.add(box(.55,.65,.17,materials.wood,0,.35,0));guitar.add(box(.07,.75,.05,materials.black,0,1.35,.09));guitar.add(box(.3,.08,.05,materials.black,0,.62,.1));
+function makePlant(x,z,scale=1){const plant=new THREE.Group();plant.position.set(x,0,z);plant.scale.setScalar(scale);plant.add(cyl(.32,.24,.55,materials.pot,0,.28,0));plant.add(cyl(.09,.13,1.1,materials.darkWood,0,1.05,0));for(let i=0;i<7;i++){const leaf=sphere(.19+Math.random()*.09,materials.plant,(Math.random()-.5)*.5,1.45+Math.random()*.55,(Math.random()-.5)*.5);leaf.scale.y=.68;plant.add(leaf)}room.add(plant)}
+makePlant(4.4,4.7,1.15);makePlant(-1.2,-4.9,.85);
+const lamp=new THREE.Group();lamp.position.set(4.55,1.49,-4.5);room.add(lamp);
+lamp.add(cyl(.09,.13,.3,materials.darkMetal,0,.15,0));lamp.add(cyl(.03,.03,.85,materials.darkMetal,0,.65,0));const shade=new THREE.Mesh(new THREE.ConeGeometry(.34,.42,24,1,true),new THREE.MeshStandardMaterial({color:0xffe6b0,emissive:0xffc36b,emissiveIntensity:.55,side:THREE.DoubleSide,roughness:.7}));shade.position.set(0,1.18,0);shade.rotation.x=Math.PI;lamp.add(shade);
+const lampLight=new THREE.PointLight(0xffc982,12,8,2);lampLight.position.set(4.55,1.35,-4.35);lampLight.castShadow=true;lampLight.shadow.mapSize.set(1024,1024);room.add(lampLight);
+const posterColors=[0xd5474a,0x3d5bd8,0xf2c14e,0x3fa374];
+for(let i=0;i<4;i++){const poster=box(1.15,1.55,.06,new THREE.MeshStandardMaterial({color:posterColors[i],roughness:.85}),1.1+i*1.35,3.35,-ROOM_D/2+.13);poster.rotation.z=(Math.random()-.5)*.06;room.add(poster)}
+for(let i=0;i<3;i++){room.add(box(.08,.09,2.2,materials.wood,-ROOM_W/2+.18,2.25+i*.75,1.2))}
+room.add(sphere(.32,materials.fabricRed,-1.4,.32,4.3));
+const skateboard=new THREE.Group();skateboard.position.set(-5.35,.12,4.55);skateboard.rotation.y=.35;room.add(skateboard);
+skateboard.add(box(.55,.09,2.1,materials.wood,0,.16,0));[-.75,.75].forEach(z=>skateboard.add(cyl(.11,.11,.07,materials.black,0,.06,z)));
+scene.add(new THREE.HemisphereLight(0xbcd3ff,0x2a2118,.65));
+const sun=new THREE.DirectionalLight(0xfff1d0,2.1);sun.position.set(9,13,7);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.near=1;sun.shadow.camera.far=45;sun.shadow.camera.left=-14;sun.shadow.camera.right=14;sun.shadow.camera.top=14;sun.shadow.camera.bottom=-14;sun.shadow.bias=-.0008;scene.add(sun);
+const fill=new THREE.DirectionalLight(0x8fa8ff,.55);fill.position.set(-9,7,-8);scene.add(fill);
+scene.add(new THREE.AmbientLight(0x607090,.35));
+const wallModes={all:[backWall,leftWall,rightWall,frontWall],back:[backWall],floor:[]};
+function setWallMode(mode){[backWall,leftWall,rightWall,frontWall].forEach(w=>w.visible=false);wallModes[mode].forEach(w=>w.visible=true)}
+document.querySelectorAll('#wallButtons button').forEach(button=>{button.addEventListener('click',()=>{document.querySelectorAll('#wallButtons button').forEach(b=>b.classList.remove('active'));button.classList.add('active');setWallMode(button.dataset.mode)})});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+const clock=new THREE.Clock();
+function animate(){requestAnimationFrame(animate);const t=clock.getElapsedTime();lampLight.intensity=10+Math.sin(t*2.2)*.55;materials.screen.emissiveIntensity=.45+Math.sin(t*1.4)*.13;controls.update();renderer.render(scene,camera)}
+animate();setTimeout(()=>{loading.style.opacity='0';setTimeout(()=>loading.remove(),450)},350);
+</script>
+</body>
+</html>
